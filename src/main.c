@@ -45,6 +45,10 @@ void handle_request(int* clientfd) {
         "%s\r\n%s\n", header, content);
 
         send(*clientfd, response, strlen(response), 0);
+        
+        free(header);
+        free(response);
+        free((void*)content);
     }
 
 cleanup:
@@ -78,11 +82,13 @@ int main() {
         (struct sockaddr *)&server_addr,
         sizeof(server_addr)) < 0) {
         perror("ERROR: bind failed\n");
+        close(server_fd);
         return 1;
     }
 
     if (listen(server_fd, 10) < 0) {
         perror("ERROR: listen failed\n");
+        close(server_fd);
         return 1;
     }
 
@@ -96,6 +102,7 @@ int main() {
                             (struct sockaddr *)&client_addr,
                             &client_addr_len)) < 0 ) {
             perror("ERROR: accept failed\n");
+            free(clientfd);
             return 1;
         }
 
