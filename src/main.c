@@ -3,6 +3,22 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <string.h>
+
+void handle_request(int* clientfd) {
+    char *buffer = (char *)malloc(1024 * sizeof(char));
+    ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);
+    if (bytes_received > 0) {
+        printf("%s\n", buffer);
+        char* response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 78\r\n\r\nHello World!";
+
+        send(*clientfd, response, strlen(response), 0);
+    }
+
+    close(*clientfd);
+    free(buffer);
+}
 
 int main() {
     int server_fd;
@@ -42,14 +58,7 @@ int main() {
             return 1;
         }
 
-        char *buffer = (char *)malloc(1024 * sizeof(char));
-        ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);
-        if (bytes_received > 0) {
-            printf("%s\n", buffer);
-        }
-
-        close(*clientfd);
-        free(buffer);
+        handle_request(clientfd);
     }
 
     return 0;
