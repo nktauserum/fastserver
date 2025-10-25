@@ -10,8 +10,18 @@ void handle_request(int* clientfd) {
     char *buffer = (char *)malloc(1024 * sizeof(char));
     ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);
     if (bytes_received > 0) {
-        printf("%s\n", buffer);
-        char* response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 78\r\n\r\nHello World!";
+        char* response = (char*)malloc(2048*2*sizeof(char));
+
+        char* content = "Hello, World!\n";
+
+        char* header = (char*)malloc(2048*sizeof(char));
+        snprintf(header, 2048, 
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html\r\n"
+        "Content-Length: %zu\r\n\r\n", strlen(content));
+        
+        snprintf(response, 2048*2, 
+        "%s\r\n%s\n", header, content);
 
         send(*clientfd, response, strlen(response), 0);
     }
@@ -60,6 +70,8 @@ int main() {
 
         handle_request(clientfd);
     }
+
+    close(server_fd);
 
     return 0;
 }
