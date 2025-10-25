@@ -6,19 +6,35 @@
 #include <sys/stat.h>
 #include <string.h>
 
+char* read_file(const char* filename) {
+    FILE* f = fopen(filename, "rb");
+    if (!f) return NULL;
+
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    rewind(f);
+
+    char* data = malloc(len + 1);
+    if (!data) { fclose(f); return NULL; }
+    fread(data, 1, len, f);
+
+    fclose(f);
+    return data;
+}
+
 void handle_request(int* clientfd) {
     char *buffer = (char *)malloc(1024 * sizeof(char));
     ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);
     if (bytes_received > 0) {
         char* response = (char*)malloc(2048*2*sizeof(char));
 
-        char* content = "Hello, World!\n";
+        const char* content = read_file("index.html");
 
         char* header = (char*)malloc(2048*sizeof(char));
         snprintf(header, 2048, 
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n"
-        "Content-Length: %zu\r\n\r\n", strlen(content));
+        "Content-Length: %zu\r\n", strlen(content));
         
         snprintf(response, 2048*2, 
         "%s\r\n%s\n", header, content);
