@@ -1,0 +1,56 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
+int main() {
+    int server_fd;
+    struct sockaddr_in server_addr;
+
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("ERROR: socket failed\n");
+        return 1;
+    }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(5000);
+
+    if (bind(
+        server_fd,
+        (struct sockaddr *)&server_addr,
+        sizeof(server_addr)) < 0) {
+        perror("ERROR: bind failed\n");
+        return 1;
+    }
+
+    if (listen(server_fd, 10) < 0) {
+        perror("ERROR: listen failed\n");
+        return 1;
+    }
+
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int *clientfd = (int*)malloc(sizeof(int));
+
+        if ((*clientfd = accept(server_fd,
+                            (struct sockaddr *)&client_addr,
+                            &client_addr_len)) < 0 ) {
+            perror("ERROR: accept failed\n");
+            return 1;
+        }
+
+        char *buffer = (char *)malloc(1024 * sizeof(char));
+        ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);
+        if (bytes_received > 0) {
+            printf("%s\n", buffer);
+        }
+
+        close(*clientfd);
+        free(buffer);
+    }
+
+    return 0;
+}
