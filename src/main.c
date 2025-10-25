@@ -18,19 +18,24 @@ char* read_file(const char* filename) {
     if (!data) { fclose(f); return NULL; }
     fread(data, 1, len, f);
 
+    data[len] = '\0';
+
     fclose(f);
     return data;
 }
 
 void handle_request(int* clientfd) {
     char *buffer = (char *)malloc(1024 * sizeof(char));
-    ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);
+    ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);    
     if (bytes_received > 0) {
         char* response = (char*)malloc(2048*2*sizeof(char));
+        if (!response) goto cleanup;
 
         const char* content = read_file("index.html");
+        if (!content) content = "<html><body>File not found</body></html>";
 
         char* header = (char*)malloc(2048*sizeof(char));
+        if (!header) goto cleanup;
         snprintf(header, 2048, 
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n"
@@ -42,8 +47,10 @@ void handle_request(int* clientfd) {
         send(*clientfd, response, strlen(response), 0);
     }
 
+cleanup:
     close(*clientfd);
     free(buffer);
+    free(clientfd);
 }
 
 int main() {
@@ -76,6 +83,7 @@ int main() {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
         int *clientfd = (int*)malloc(sizeof(int));
+        if (!clientfd) continue;
 
         if ((*clientfd = accept(server_fd,
                             (struct sockaddr *)&client_addr,
@@ -86,8 +94,4 @@ int main() {
 
         handle_request(clientfd);
     }
-
-    close(server_fd);
-
-    return 0;
 }
