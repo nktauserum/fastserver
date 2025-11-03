@@ -6,6 +6,9 @@
 #include <sys/stat.h>
 #include <string.h>
 
+#define PORT 5000
+#define BUFFER_SIZE 1024
+
 char* read_file(const char* filename) {
     FILE* f = fopen(filename, "rb");
     if (!f) return NULL;
@@ -24,12 +27,58 @@ char* read_file(const char* filename) {
     return data;
 }
 
+struct Server {
+    int port;
+    int server_fd;
+    struct sockaddr_in server_addr;
+};
+
+struct Server server;
+
+struct Server* init(int port) {
+    if ((server.server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("ERROR: socket failed\n");
+        return NULL;
+    }
+    
+    int opt = 1;
+    if (setsockopt(server.server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("ERROR: setsockopt failed\n");
+        close(server.server_fd);
+        return NULL;
+    }
+
+    server.server_addr.sin_family = AF_INET;
+    server.server_addr.sin_addr.s_addr = INADDR_ANY;
+    server.server_addr.sin_port = htons(port);
+    
+    if (bind(
+        server.server_fd,
+        (struct sockaddr *)&server.server_addr,
+        sizeof(server.server_addr)) < 0) {
+        perror("ERROR: bind failed\n");
+        close(server.server_fd);
+        return NULL;
+    }
+
+    if (listen(server.server_fd, 10) < 0) {
+        perror("ERROR: listen failed\n");
+        close(server.server_fd);
+        return NULL;
+    }
+
+    printf("INFO: server successfully started on port %d\n", port);
+    return &server;
+}
+
 void handle_request(int* clientfd) {
-    char *buffer = (char *)malloc(1024 * sizeof(char));
-    ssize_t bytes_received = recv(*clientfd, buffer, 1024, 0);    
+    char *request_buffer = (char *)malloc(1024 * sizeof(char));
+    ssize_t bytes_received = recv(*clientfd, request_buffer, 1024, 0);    
     if (bytes_received > 0) {
         char* response = (char*)malloc(2048*2*sizeof(char));
         if (!response) goto cleanup;
+
+        printf("%s\n", request_buffer);
 
         const char* content = read_file("index.html");
         if (!content) content = "<html><body>File not found</body></html>";
@@ -39,7 +88,7 @@ void handle_request(int* clientfd) {
         snprintf(header, 2048, 
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n"
-        "Content-Length: %zu\r\n", strlen(content));
+        "Content-Length: %zu\r\n", strlen(content)+1); // Учитываем \0-терминатор
         
         snprintf(response, 2048*2, 
         "%s\r\n%s\n", header, content);
@@ -53,59 +102,36 @@ void handle_request(int* clientfd) {
 
 cleanup:
     close(*clientfd);
-    free(buffer);
+    free(request_buffer);
     free(clientfd);
 }
 
-int main() {
-    int server_fd;
-    struct sockaddr_in server_addr;
-
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("ERROR: socket failed\n");
-        return 1;
-    }
-
-    int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        perror("ERROR: setsockopt failed\n");
-        close(server_fd);
-        return 1;
-    }
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(5000);
-
-    if (bind(
-        server_fd,
-        (struct sockaddr *)&server_addr,
-        sizeof(server_addr)) < 0) {
-        perror("ERROR: bind failed\n");
-        close(server_fd);
-        return 1;
-    }
-
-    if (listen(server_fd, 10) < 0) {
-        perror("ERROR: listen failed\n");
-        close(server_fd);
-        return 1;
-    }
-
+void start(struct Server* server) {
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
         int *clientfd = (int*)malloc(sizeof(int));
         if (!clientfd) continue;
 
-        if ((*clientfd = accept(server_fd,
+        if ((*clientfd = accept(server->server_fd,
                             (struct sockaddr *)&client_addr,
                             &client_addr_len)) < 0 ) {
             perror("ERROR: accept failed\n");
             free(clientfd);
-            return 1;
+            continue;
         }
 
         handle_request(clientfd);
     }
+}
+
+
+int main() {
+    struct Server* server = init(PORT);
+    if (!server) {
+        printf("ERROR: server initializing failed\n");
+        return 1;
+    }
+
+    start(server);
 }
