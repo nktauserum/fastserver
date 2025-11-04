@@ -5,9 +5,11 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <regex.h>
 
 #define PORT 5000
 #define BUFFER_SIZE 1024
+
 
 char* read_file(const char* filename) {
     FILE* f = fopen(filename, "rb");
@@ -34,6 +36,7 @@ struct Server {
 };
 
 struct Server server;
+regex_t regex;
 
 struct Server* init(int port) {
     if ((server.server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -78,17 +81,36 @@ void handle_request(int* clientfd) {
         char* response = (char*)malloc(2048*2*sizeof(char));
         if (!response) goto cleanup;
 
-        printf("%s\n", request_buffer);
+        regcomp(&regex, "GET /([^ ]*)*", REG_EXTENDED);
+        regmatch_t ms[2];
 
-        const char* content = read_file("index.html");
-        if (!content) content = "<html><body>File not found</body></html>";
+        if (regexec(&regex, request_buffer, 2, ms, 0) < 0) {
+            printf("ERROR: regexp executing failed");
+            goto cleanup;
+        }
+        request_buffer[ms[1].rm_eo] = '\0';
+
+        printf("INFO: %s\n", request_buffer);             
+
+        char* content;
+        char* status;
+        if (strcmp(request_buffer, "GET /") == 0) {
+            content = read_file("index.html");
+            status = "200 OK";
+        } else if (strcmp(request_buffer, "GET /about") == 0) {
+            content = read_file("about.html");
+            status = "200 OK";
+        } else {
+            content = read_file("404.html");
+            status = "404 Not Found";
+        }
 
         char* header = (char*)malloc(2048*sizeof(char));
         if (!header) goto cleanup;
         snprintf(header, 2048, 
-        "HTTP/1.1 200 OK\r\n"
+        "HTTP/1.1 %s\r\n"
         "Content-Type: text/html\r\n"
-        "Content-Length: %zu\r\n", strlen(content)+1); // Учитываем \0-терминатор
+        "Content-Length: %zu\r\n", status, strlen(content)+1); // Учитываем \0-терминатор
         
         snprintf(response, 2048*2, 
         "%s\r\n%s\n", header, content);
@@ -102,8 +124,8 @@ void handle_request(int* clientfd) {
 
 cleanup:
     close(*clientfd);
-    free(request_buffer);
     free(clientfd);
+    free(request_buffer);
 }
 
 void start(struct Server* server) {
