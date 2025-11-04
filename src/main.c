@@ -7,27 +7,9 @@
 #include <string.h>
 #include <regex.h>
 
+#include "routes.h"
+
 #define PORT 5000
-#define BUFFER_SIZE 1024
-
-
-char* read_file(const char* filename) {
-    FILE* f = fopen(filename, "rb");
-    if (!f) return NULL;
-
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    rewind(f);
-
-    char* data = malloc(len + 1);
-    if (!data) { fclose(f); return NULL; }
-    fread(data, 1, len, f);
-
-    data[len] = '\0';
-
-    fclose(f);
-    return data;
-}
 
 struct Server {
     int port;
@@ -78,9 +60,6 @@ void handle_request(int* clientfd) {
     char *request_buffer = (char *)malloc(1024 * sizeof(char));
     ssize_t bytes_received = recv(*clientfd, request_buffer, 1024, 0);    
     if (bytes_received > 0) {
-        char* response = (char*)malloc(2048*2*sizeof(char));
-        if (!response) goto cleanup;
-
         regcomp(&regex, "GET /([^ ]*)*", REG_EXTENDED);
         regmatch_t ms[2];
 
@@ -92,34 +71,7 @@ void handle_request(int* clientfd) {
 
         printf("INFO: %s\n", request_buffer);             
 
-        char* content;
-        char* status;
-        if (strcmp(request_buffer, "GET /") == 0) {
-            content = read_file("index.html");
-            status = "200 OK";
-        } else if (strcmp(request_buffer, "GET /about") == 0) {
-            content = read_file("about.html");
-            status = "200 OK";
-        } else {
-            content = read_file("404.html");
-            status = "404 Not Found";
-        }
-
-        char* header = (char*)malloc(2048*sizeof(char));
-        if (!header) goto cleanup;
-        snprintf(header, 2048, 
-        "HTTP/1.1 %s\r\n"
-        "Content-Type: text/html\r\n"
-        "Content-Length: %zu\r\n", status, strlen(content)+1); // Учитываем \0-терминатор
-        
-        snprintf(response, 2048*2, 
-        "%s\r\n%s\n", header, content);
-
-        send(*clientfd, response, strlen(response), 0);
-        
-        free(header);
-        free(response);
-        free((void*)content);
+        handle_route(request_buffer, clientfd);
     }
 
 cleanup:
@@ -147,8 +99,7 @@ void start(struct Server* server) {
     }
 }
 
-
-int main() {
+int main(void) {
     struct Server* server = init(PORT);
     if (!server) {
         printf("ERROR: server initializing failed\n");
@@ -156,4 +107,6 @@ int main() {
     }
 
     start(server);
+    
+    return 0;
 }
