@@ -41,7 +41,7 @@ const char* get_mime_type(const char* filename) {
     return "application/octet-stream";
 }
 
-ImageFile* load_image_file(const char* filename) {
+ImageFile* load_file(const char* filename) {
     FILE* f = fopen(filename, "rb");
     if (!f) return NULL;
 
