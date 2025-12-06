@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -I./src
+CFLAGS = -Wall -Wextra -pedantic -I./src
 SRC = src/main.c src/routes.c
 OBJ = $(SRC:.c=.o)
 TARGET = bin/fastserver
