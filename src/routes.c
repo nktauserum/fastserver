@@ -10,6 +10,21 @@
 #define NOT_FOUND_PATH "static/404.html"
 #define FAVICON_PATH "static/image/favicon.png"
 
+#define send_html(content) do {                                     \
+        char* response = (char*)malloc(2048*2*sizeof(char));        \
+        char *header = (char *)malloc(2048 * sizeof(char));         \
+        snprintf(header, 2048,                                      \
+            "HTTP/1.1 200 OK\r\n"                                   \
+            "Content-Type: text/html\r\n"                           \
+            "Content-Length: %zu\r\n", strlen(content) + 1);        \
+        snprintf(response, 2048*2,                                  \
+        "%s\r\n%s\n", header, content);                             \
+        send(*req.clientfd, response, strlen(response), 0);         \
+        free(header);                                               \
+        free(content);                                              \
+        free(response);                                             \
+    } while (0)
+
 struct Request {
     int* clientfd;
     const char* path;
@@ -17,45 +32,13 @@ struct Request {
 
 void index_handler(Request req) {
     char *content = load_txt_file(INDEX_PATH);
-    if (content) {
-        char* response = (char*)malloc(2048*2*sizeof(char));
-        char *header = (char *)malloc(2048 * sizeof(char));
-        snprintf(header, 2048, 
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: %zu\r\n", strlen(content) + 1);
-        
-        snprintf(response, 2048*2, 
-        "%s\r\n%s\n", header, content);
-
-        send(*req.clientfd, response, strlen(response), 0);
-        
-        free(header);
-        free(content);
-        free(response);
-    }
+    if (content) send_html(content);
 }
 
 
 void about_handler(Request req) {
     char *content = load_txt_file(ABOUT_PATH);
-    if (content) {
-        char* response = (char*)malloc(2048*2*sizeof(char));
-        char *header = (char *)malloc(2048 * sizeof(char));
-        snprintf(header, 2048, 
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: %zu\r\n", strlen(content) + 1);
-        
-        snprintf(response, 2048*2, 
-        "%s\r\n%s\n", header, content);
-
-        send(*req.clientfd, response, strlen(response), 0);
-        
-        free(header);
-        free(content);
-        free(response);
-    }
+    if (content) send_html(content);
 }
 
 void not_found_handler(Request req) {
@@ -83,7 +66,7 @@ void static_handler(Request req) {
     char path[256];
     snprintf(path, 256, "static/%s", req.path);
 
-    ImageFile* img = load_file(path);
+    File* img = load_file(path);
     if (img) {
         char* header = (char *)malloc(2048 * sizeof(char));
         snprintf(header, 2048, 
@@ -103,7 +86,7 @@ void static_handler(Request req) {
 }
 
 void favicon_handler(Request req) {
-    ImageFile* img = load_file(FAVICON_PATH);
+    File* img = load_file(FAVICON_PATH);
     if (img) {
         char* header = (char *)malloc(2048 * sizeof(char));
         snprintf(header, 2048, 
