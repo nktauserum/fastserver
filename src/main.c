@@ -7,7 +7,7 @@
 #include <string.h>
 #include <regex.h>
 
-#include "routes.h"
+#include "request.h"
 
 #define PORT 5000
 
@@ -18,7 +18,6 @@ struct Server {
 };
 
 struct Server server;
-regex_t regex;
 
 struct Server* init(int port) {
     if ((server.server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -56,30 +55,6 @@ struct Server* init(int port) {
     return &server;
 }
 
-void handle_request(int* clientfd) {
-    char *request_buffer = (char *)malloc(1024 * sizeof(char));
-    ssize_t bytes_received = recv(*clientfd, request_buffer, 1024, 0);    
-    if (bytes_received > 0) {
-        regcomp(&regex, "GET /([^ ]*)*", REG_EXTENDED);
-        regmatch_t ms[2];
-
-        if (regexec(&regex, request_buffer, 2, ms, 0) < 0) {
-            printf("ERROR: regexp executing failed");
-            goto cleanup;
-        }
-        request_buffer[ms[1].rm_eo] = '\0';
-
-        printf("INFO: %s\n", request_buffer);             
-
-        handle_route(request_buffer, clientfd);
-    }
-
-cleanup:
-    close(*clientfd);
-    free(clientfd);
-    free(request_buffer);
-}
-
 void start(struct Server* server) {
     while (1) {
         struct sockaddr_in client_addr;
@@ -96,6 +71,9 @@ void start(struct Server* server) {
         }
 
         handle_request(clientfd);
+
+        close(*clientfd);
+        free(clientfd);
     }
 }
 

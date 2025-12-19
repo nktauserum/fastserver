@@ -9,7 +9,7 @@ typedef struct {
     unsigned char* data;
     unsigned char* type;
     size_t size;
-} File;
+} Data;
 
 char* load_txt_file(const char* filename) {
     FILE* f = fopen(filename, "rb");
@@ -41,7 +41,7 @@ const char* get_mime_type(const char* filename) {
     return "application/octet-stream";
 }
 
-File* load_file(const char* filename) {
+Data* load_file(const char* filename) {
     FILE* f = fopen(filename, "rb");
     if (!f) return NULL;
 
@@ -53,13 +53,13 @@ File* load_file(const char* filename) {
     if (!data) { fclose(f); return NULL; }
     fread(data, 1, len, f);
 
-    File* img = (File*)malloc(sizeof(File));
-    img->data = data;
-    img->type = (unsigned char*)get_mime_type(filename);
-    img->size = len;
+    Data* file = (Data*)malloc(sizeof(Data));
+    file->data = data;
+    file->type = (unsigned char*)get_mime_type(filename);
+    file->size = len;
 
     fclose(f);
-    return img;
+    return file;
 }
 
 #endif // FILE_H

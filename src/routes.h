@@ -1,19 +1,15 @@
 #ifndef ROUTES_H
 #define ROUTES_H
 
-typedef struct {
-    int* clientfd;
-    const char* path;
-} Request;
+#include "request.h"
 
-typedef void (*Handler)(Request req);
+typedef void (*Handler)(Response *w, Request r);
 
 typedef struct {
     const char* route;
-    int dynamic;
     Handler handler;
 } Route;
 
-void handle_route(const char* response, int* clientfd);
+void handle_route(Response *w, Request r);
 
 #endif // ROUTES_H
