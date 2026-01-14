@@ -11,7 +11,7 @@
 #define FAVICON_PATH "static/image/favicon.png"
 
 struct Request {
-    char *path;
+    char *path, *method, *protocol;
 };
 
 struct Response {

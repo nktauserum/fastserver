@@ -9,20 +9,37 @@
 
 regex_t regex;
 
+#define REQUEST_BUFFER_SIZE 1024
+struct request_buffer {
+    char *buf;
+    size_t capacity;
+};
+
+void init_buffer(struct request_buffer *r_buf) {
+    r_buf->capacity = REQUEST_BUFFER_SIZE * sizeof(char);
+    r_buf->buf = (char *)malloc(r_buf->capacity);
+}
+
+void clear_buffer(struct request_buffer *r_buf) {
+    free(r_buf->buf);
+}
+
 void handle_request(int *clientfd) {
-    char *request_buffer = (char *)malloc(1024 * sizeof(char));
-    ssize_t bytes_received = recv(*clientfd, request_buffer, 1024, 0);    
+    struct request_buffer buffer;
+    init_buffer(&buffer);
+    
+    ssize_t bytes_received = recv(*clientfd, buffer.buf, 1024, 0);    
     if (bytes_received > 0) {
         regcomp(&regex, "GET /([^ ]*)*", REG_EXTENDED);
         regmatch_t ms[2];
 
-        if (regexec(&regex, request_buffer, 2, ms, 0) < 0) {
+        if (regexec(&regex, buffer.buf, 2, ms, 0) < 0) {
             printf("ERROR: regexp executing failed");
             goto cleanup;
         }
-        request_buffer[ms[1].rm_eo] = '\0';
+        buffer.buf[ms[1].rm_eo] = '\0';
 
-        printf("INFO: %s\n", request_buffer);
+        printf("INFO: %s\n", buffer.buf);
 
         char *status_code = malloc(128 * sizeof(char));
         if (!status_code) {
@@ -48,7 +65,7 @@ void handle_request(int *clientfd) {
             .status_code = status_code,
         };
 
-        Request r = {.path = request_buffer};
+        Request r = {.path = buffer.buf};
 
         handle_route(&w, r);
 
@@ -78,5 +95,5 @@ void handle_request(int *clientfd) {
     }
 
 cleanup:
-    free(request_buffer);
+    clear_buffer(&buffer);
 }

@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 typedef struct {
-    char *path;
+    char *path, *method, *protocol;
 } Request;
 
 typedef struct {
