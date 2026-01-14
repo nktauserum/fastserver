@@ -29,8 +29,8 @@ void handle_request(int *clientfd) {
     struct request_buffer buffer;
     init_buffer(&buffer);
     
-    ssize_t bytes_read;
-    while ((bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0)) > 0) {
+    ssize_t bytes_read = 0;
+    if ((bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0)) > 0) {
         buffer.total_read += bytes_read;
         
         if (buffer.total_read >= buffer.capacity - 1) {
@@ -38,11 +38,33 @@ void handle_request(int *clientfd) {
             char *temp = realloc(buffer.buf, buffer.capacity);
             if (!temp) {
                 fprintf(stderr, "ERROR: realloc request_buffer\n");
-                break;
+                return;
             }
             buffer.buf = temp;
         }
     }
+    
+    // buffer.buf now contains raw request
+
+    char *method = malloc(16 * sizeof(char));
+    if (!method) {
+        goto cleanup;
+    }
+
+    char *path = malloc(256 * sizeof(char));
+    if (!path) {
+        free(method);
+        goto cleanup;
+    }
+
+    char *protocol = malloc(256 * sizeof(char));
+    if (!protocol) {
+        free(method);
+        free(path);
+        goto cleanup;
+    }
+
+    Request r = {.method = method, .path = path, .protocol = protocol};
 
     char *status_code = malloc(128 * sizeof(char));
     if (!status_code) {
@@ -68,7 +90,6 @@ void handle_request(int *clientfd) {
         .status_code = status_code,
     };
 
-    Request r = {.path = buffer.buf};
 
     handle_route(&w, r);
 
