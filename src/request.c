@@ -22,7 +22,7 @@ void init_buffer(struct request_buffer *r_buf) {
 }
 
 void clear_buffer(struct request_buffer *r_buf) {
-    free(r_buf->buf);
+    if (r_buf->buf) free(r_buf->buf);
 }
 
 void handle_request(int *clientfd) {
@@ -44,7 +44,23 @@ void handle_request(int *clientfd) {
         }
     }
     
-    // buffer.buf now contains raw request
+    // buffer.buf now contains raw request data
+
+    char *end_header = strstr(buffer.buf, "\r\n\r\n");
+    if (!end_header) {
+        end_header = buffer.buf + strlen(buffer.buf);
+    }
+
+    ssize_t header_len = end_header - buffer.buf;
+
+    char *request_header = malloc(header_len + 1);
+    if (!request_header) {
+        fprintf(stderr, "ERROR: malloc request_header\n");
+        return;
+    }
+
+    strncpy(request_header, buffer.buf, header_len);
+    request_header[header_len] = '\0';
 
     char *method = malloc(16 * sizeof(char));
     if (!method) {
@@ -65,6 +81,7 @@ void handle_request(int *clientfd) {
     }
 
     Request r = {.method = method, .path = path, .protocol = protocol};
+    free(request_header);
 
     char *status_code = malloc(128 * sizeof(char));
     if (!status_code) {
@@ -93,15 +110,15 @@ void handle_request(int *clientfd) {
 
     handle_route(&w, r);
 
-    char *header = (char*)malloc(2048 * sizeof(char));
-    if (!header) {
+    char *response_header = (char*)malloc(2048 * sizeof(char));
+    if (!response_header) {
         free(status_code);
         free(mime_type);
         free(response_body);
         goto cleanup;
     }
 
-    snprintf(header, 2048, 
+    snprintf(response_header, 2048, 
         "HTTP/1.1 %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n\r\n",
@@ -109,10 +126,10 @@ void handle_request(int *clientfd) {
         w.status_code, w.mime_type, w.body_size
     );
 
-    send(*clientfd, header, strlen(header), 0);
+    send(*clientfd, response_header, strlen(response_header), 0);
     send(*clientfd, w.response_body, w.body_size, 0);
 
-    free(header);
+    free(response_header);
     free(w.response_body);
     free(w.mime_type);
     free(w.status_code);
