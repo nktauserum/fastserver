@@ -1,13 +1,10 @@
 #include <string.h>
 #include <stdio.h>
-#include <regex.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 
 #include "request.h"
 #include "routes.h"
-
-regex_t regex;
 
 #define REQUEST_BUFFER_SIZE 1024
 struct request_buffer {
@@ -25,10 +22,12 @@ void clear_buffer(struct request_buffer *r_buf) {
     if (r_buf->buf) free(r_buf->buf);
 }
 
-void handle_request(int *clientfd) {
+Request parse_request(int *clientfd) {
+    Request r;
+
     struct request_buffer buffer;
     init_buffer(&buffer);
-    
+
     ssize_t bytes_read = 0;
     if ((bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0)) > 0) {
         buffer.total_read += bytes_read;
@@ -38,7 +37,7 @@ void handle_request(int *clientfd) {
             char *temp = realloc(buffer.buf, buffer.capacity);
             if (!temp) {
                 fprintf(stderr, "ERROR: realloc request_buffer\n");
-                return;
+                goto cleanup;
             }
             buffer.buf = temp;
         }
@@ -56,7 +55,7 @@ void handle_request(int *clientfd) {
     char *request_header = malloc(header_len + 1);
     if (!request_header) {
         fprintf(stderr, "ERROR: malloc request_header\n");
-        return;
+        goto cleanup;
     }
 
     strncpy(request_header, buffer.buf, header_len);
@@ -80,25 +79,35 @@ void handle_request(int *clientfd) {
         goto cleanup;
     }
 
-    Request r = {.method = method, .path = path, .protocol = protocol};
+    r.method = method;
+    r.path = path;
+    r.protocol = protocol;
+    
     free(request_header);
+cleanup:
+    clear_buffer(&buffer);
+    return r;
+}
+
+void handle_request(int *clientfd) {
+    Request r = parse_request(clientfd);
 
     char *status_code = malloc(128 * sizeof(char));
     if (!status_code) {
-        goto cleanup;
+        return;
     }
 
     char *response_body = malloc(2048 * sizeof(char));
     if (!response_body) {
         free(status_code);
-        goto cleanup;
+        return;
     }
 
     char *mime_type = malloc(256 * sizeof(char));
     if (!mime_type) {
         free(status_code);
         free(response_body);
-        goto cleanup;
+        return;
     }
 
     Response w = {
@@ -115,7 +124,7 @@ void handle_request(int *clientfd) {
         free(status_code);
         free(mime_type);
         free(response_body);
-        goto cleanup;
+        return;
     }
 
     snprintf(response_header, 2048, 
@@ -133,6 +142,4 @@ void handle_request(int *clientfd) {
     free(w.response_body);
     free(w.mime_type);
     free(w.status_code);
-cleanup:
-    clear_buffer(&buffer);
 }
