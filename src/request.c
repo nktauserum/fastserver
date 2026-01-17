@@ -22,25 +22,27 @@ void clear_buffer(struct request_buffer *r_buf) {
     if (r_buf->buf) free(r_buf->buf);
 }
 
-Request parse_request(int *clientfd) {
-    Request r;
-
+int parse_request(int *clientfd, Request *r) {
     struct request_buffer buffer;
     init_buffer(&buffer);
 
     ssize_t bytes_read = 0;
-    if ((bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0)) > 0) {
-        buffer.total_read += bytes_read;
-        
-        if (buffer.total_read >= buffer.capacity - 1) {
-            buffer.capacity *= 2;
-            char *temp = realloc(buffer.buf, buffer.capacity);
-            if (!temp) {
-                fprintf(stderr, "ERROR: realloc request_buffer\n");
-                goto cleanup;
-            }
-            buffer.buf = temp;
+    if ((bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0)) <= 0) {
+        fprintf(stderr, "ERROR: recv failed or connection closed\n");
+        clear_buffer(&buffer);
+        return 1;
+    }
+    
+    buffer.total_read += bytes_read;
+    
+    if (buffer.total_read >= buffer.capacity - 1) {
+        buffer.capacity *= 2;
+        char *temp = realloc(buffer.buf, buffer.capacity);
+        if (!temp) {
+            fprintf(stderr, "ERROR: realloc request_buffer\n");
+            goto cleanup;
         }
+        buffer.buf = temp;
     }
     
     // buffer.buf now contains raw request data
@@ -62,7 +64,6 @@ Request parse_request(int *clientfd) {
     strncpy(request_header, buffer.buf, header_len);
     request_header[header_len] = '\0';
 
-
     // Select the first line in the header
     char *end_first_line = strchr(request_header, '\n');
     if (!end_first_line) {
@@ -80,41 +81,62 @@ Request parse_request(int *clientfd) {
     }
 
     strncpy(first_line, request_header, first_line_len);
-    first_line[header_len] = '\0';
+    first_line[--first_line_len] = '\0';
     printf("first_line: %s\n", first_line);
-
 
     // Allocate request fields
     char *method = malloc(16 * sizeof(char));
     if (!method) {
+        fprintf(stderr, "ERROR: malloc request method\n");
         goto cleanup;
     }
 
-    char *path = malloc(256 * sizeof(char));
+    char *path = malloc(2048 * sizeof(char));
     if (!path) {
+        fprintf(stderr, "ERROR: malloc request path\n");
         free(method);
         goto cleanup;
     }
 
     char *protocol = malloc(256 * sizeof(char));
     if (!protocol) {
+        fprintf(stderr, "ERROR: malloc request protocol\n");
         free(method);
         free(path);
         goto cleanup;
     }
 
-    r.method = method;
-    r.path = path;
-    r.protocol = protocol;
+    // Select the required information
+    int parsed_count; 
+    if ((parsed_count = sscanf(first_line, "%s %s %s\r", method, path, protocol)) != 3) {
+        printf("ERROR: parsing the line \"%s\"\n", first_line);
+        free(method);
+        free(path);
+        free(protocol);
+        free(first_line);
+        goto cleanup;
+    }
+
+    r->method = method;
+    r->path = path;
+    r->protocol = protocol;
     
     free(request_header);
+    free(first_line);
+    clear_buffer(&buffer);
+    return 0;
 cleanup:
     clear_buffer(&buffer);
-    return r;
+    return 1;
 }
 
 void handle_request(int *clientfd) {
-    Request r = parse_request(clientfd);
+    Request r = {0};
+    int s;
+    if ((s = parse_request(clientfd, &r)) != 0) {
+        fprintf(stderr, "ERROR: parse request\n");
+        return;
+    }
 
     char *status_code = malloc(128 * sizeof(char));
     if (!status_code) {
@@ -166,4 +188,7 @@ void handle_request(int *clientfd) {
     free(w.response_body);
     free(w.mime_type);
     free(w.status_code);
+    free(r.method);
+    free(r.path);
+    free(r.protocol);
 }

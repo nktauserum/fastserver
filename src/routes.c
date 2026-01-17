@@ -25,10 +25,12 @@ struct Response {
 void index_handler(Response *w, Request r) {
     char *content = load_txt_file(INDEX_PATH);
     if (content) {
-        w->response_body = strcpy(w->response_body, (char*)content);
-        w->mime_type = strcpy(w->mime_type, "text/html");
-        w->status_code = strcpy(w->status_code, "200 OK");
-        w->body_size = strlen(content);
+        ssize_t content_len = strlen(content);
+        snprintf(w->response_body, content_len, "%s", content);
+        snprintf(w->mime_type, 256, "%s", "text/html");
+        snprintf(w->status_code, 256, "%s", "200 OK");
+        w->body_size = content_len;
+        free(content);
     } else {
         printf("error loading file\n");
     }
@@ -37,15 +39,17 @@ void index_handler(Response *w, Request r) {
 void not_found_handler(Response *w, Request r) {
     char *content = load_txt_file(NOT_FOUND_PATH);
     if (content) {
-        w->response_body = strcpy(w->response_body, (char*)content);
-        w->mime_type = strcpy(w->mime_type, "text/html");
-        w->status_code = strcpy(w->status_code, "404 Not Found");
-        w->body_size = strlen(content);
+        ssize_t content_len = strlen(content);
+        snprintf(w->response_body, content_len, "%s", content);
+        snprintf(w->mime_type, 256, "%s", "text/html");
+        snprintf(w->status_code, 256, "%s", "404 Not Found");
+        w->body_size = content_len;
+        free(content);
     }
 }
 
 Route router[] = {
-    {.route = "GET /", .handler = index_handler},
+    {.route = "/", .handler = index_handler},
     {.route = NULL, .handler = not_found_handler}
 };
 
