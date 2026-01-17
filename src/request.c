@@ -45,6 +45,7 @@ Request parse_request(int *clientfd) {
     
     // buffer.buf now contains raw request data
 
+    // Select the header. Important for subsequent features.
     char *end_header = strstr(buffer.buf, "\r\n\r\n");
     if (!end_header) {
         end_header = buffer.buf + strlen(buffer.buf);
@@ -61,6 +62,29 @@ Request parse_request(int *clientfd) {
     strncpy(request_header, buffer.buf, header_len);
     request_header[header_len] = '\0';
 
+
+    // Select the first line in the header
+    char *end_first_line = strchr(request_header, '\n');
+    if (!end_first_line) {
+        free(request_header);
+        goto cleanup;
+    }
+
+    ssize_t first_line_len = end_first_line - request_header;
+
+    char *first_line = malloc(++first_line_len);
+    if (!request_header) {
+        fprintf(stderr, "ERROR: malloc first_line\n");
+        free(request_header);
+        goto cleanup;
+    }
+
+    strncpy(first_line, request_header, first_line_len);
+    first_line[header_len] = '\0';
+    printf("first_line: %s\n", first_line);
+
+
+    // Allocate request fields
     char *method = malloc(16 * sizeof(char));
     if (!method) {
         goto cleanup;
