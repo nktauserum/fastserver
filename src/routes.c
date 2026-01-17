@@ -26,13 +26,17 @@ void index_handler(Response *w, Request r) {
     char *content = load_txt_file(INDEX_PATH);
     if (content) {
         ssize_t content_len = strlen(content);
-        snprintf(w->response_body, content_len, "%s", content);
+        snprintf(w->response_body, 2048, "%s", content);
         snprintf(w->mime_type, 256, "%s", "text/html");
         snprintf(w->status_code, 256, "%s", "200 OK");
-        w->body_size = content_len;
+        w->body_size = strlen(w->response_body);
         free(content);
     } else {
-        printf("error loading file\n");
+        printf("ERROR: could not load index.html\n");
+        snprintf(w->response_body, 2048, "%s", "500 Internal Server Error");
+        snprintf(w->mime_type, 256, "%s", "text/html");
+        snprintf(w->status_code, 256, "%s", "500 Internal Server Error");
+        w->body_size = strlen(w->response_body);
     }
 }
 
@@ -40,11 +44,16 @@ void not_found_handler(Response *w, Request r) {
     char *content = load_txt_file(NOT_FOUND_PATH);
     if (content) {
         ssize_t content_len = strlen(content);
-        snprintf(w->response_body, content_len, "%s", content);
+        snprintf(w->response_body, 2048, "%s", content);
         snprintf(w->mime_type, 256, "%s", "text/html");
         snprintf(w->status_code, 256, "%s", "404 Not Found");
-        w->body_size = content_len;
+        w->body_size = strlen(w->response_body);
         free(content);
+    } else {
+        snprintf(w->response_body, 2048, "%s", "404 Not Found");
+        snprintf(w->mime_type, 256, "%s", "text/html");
+        snprintf(w->status_code, 256, "%s", "404 Not Found");
+        w->body_size = strlen(w->response_body);
     }
 }
 

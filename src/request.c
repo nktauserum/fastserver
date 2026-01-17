@@ -16,6 +16,7 @@ struct request_buffer {
 void init_buffer(struct request_buffer *r_buf) {
     r_buf->capacity = REQUEST_BUFFER_SIZE * sizeof(char);
     r_buf->buf = (char *)malloc(r_buf->capacity);
+    r_buf->total_read = 0;
 }
 
 void clear_buffer(struct request_buffer *r_buf) {
@@ -26,23 +27,37 @@ int parse_request(int *clientfd, Request *r) {
     struct request_buffer buffer;
     init_buffer(&buffer);
 
-    ssize_t bytes_read = 0;
-    if ((bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0)) <= 0) {
-        fprintf(stderr, "ERROR: recv failed or connection closed\n");
-        clear_buffer(&buffer);
-        return 1;
-    }
-    
-    buffer.total_read += bytes_read;
-    
-    if (buffer.total_read >= buffer.capacity - 1) {
-        buffer.capacity *= 2;
-        char *temp = realloc(buffer.buf, buffer.capacity);
-        if (!temp) {
-            fprintf(stderr, "ERROR: realloc request_buffer\n");
+    while (1) {
+        // Reallocate the buffer if needed.
+        if (buffer.total_read >= buffer.capacity - 1) {
+            buffer.capacity *= 2;
+            char *temp = realloc(buffer.buf, buffer.capacity);
+            if (!temp) {
+                fprintf(stderr, "ERROR: realloc request_buffer\n");
+                goto cleanup;
+            }
+            buffer.buf = temp;
+        }
+
+        ssize_t bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0);
+        
+        if (bytes_read < 0) {
+            perror("recv");
             goto cleanup;
         }
-        buffer.buf = temp;
+        
+        if (bytes_read == 0) {
+            if (buffer.total_read == 0) {
+                goto cleanup;
+            }
+            break;
+        }
+        
+        buffer.total_read += bytes_read;
+        
+        buffer.buf[buffer.total_read] = '\0';
+
+        if (strstr(buffer.buf, "\r\n\r\n")) break;
     }
     
     // buffer.buf now contains raw request data
