@@ -24,6 +24,7 @@ void clear_buffer(struct request_buffer *r_buf) {
 }
 
 int parse_request(int *clientfd, Request *r) {
+    int status = 0;
     struct request_buffer buffer;
     init_buffer(&buffer);
 
@@ -34,6 +35,7 @@ int parse_request(int *clientfd, Request *r) {
             char *temp = realloc(buffer.buf, buffer.capacity);
             if (!temp) {
                 fprintf(stderr, "ERROR: realloc request_buffer\n");
+                status++;
                 goto cleanup;
             }
             buffer.buf = temp;
@@ -43,11 +45,13 @@ int parse_request(int *clientfd, Request *r) {
         
         if (bytes_read < 0) {
             perror("recv");
+            status++;
             goto cleanup;
         }
         
         if (bytes_read == 0) {
             if (buffer.total_read == 0) {
+                status++;
                 goto cleanup;
             }
             break;
@@ -73,6 +77,7 @@ int parse_request(int *clientfd, Request *r) {
     char *request_header = malloc(header_len + 1);
     if (!request_header) {
         fprintf(stderr, "ERROR: malloc request_header\n");
+        status++;
         goto cleanup;
     }
 
@@ -83,6 +88,7 @@ int parse_request(int *clientfd, Request *r) {
     char *end_first_line = strchr(request_header, '\n');
     if (!end_first_line) {
         free(request_header);
+        status++;
         goto cleanup;
     }
 
@@ -92,6 +98,7 @@ int parse_request(int *clientfd, Request *r) {
     if (!request_header) {
         fprintf(stderr, "ERROR: malloc first_line\n");
         free(request_header);
+        status++;
         goto cleanup;
     }
 
@@ -103,6 +110,7 @@ int parse_request(int *clientfd, Request *r) {
     char *method = malloc(16 * sizeof(char));
     if (!method) {
         fprintf(stderr, "ERROR: malloc request method\n");
+        status++;
         goto cleanup;
     }
 
@@ -110,6 +118,7 @@ int parse_request(int *clientfd, Request *r) {
     if (!path) {
         fprintf(stderr, "ERROR: malloc request path\n");
         free(method);
+        status++;
         goto cleanup;
     }
 
@@ -118,6 +127,7 @@ int parse_request(int *clientfd, Request *r) {
         fprintf(stderr, "ERROR: malloc request protocol\n");
         free(method);
         free(path);
+        status++;
         goto cleanup;
     }
 
@@ -129,6 +139,7 @@ int parse_request(int *clientfd, Request *r) {
         free(path);
         free(protocol);
         free(first_line);
+        status++;
         goto cleanup;
     }
 
@@ -136,13 +147,11 @@ int parse_request(int *clientfd, Request *r) {
     r->path = path;
     r->protocol = protocol;
     
-    free(request_header);
-    free(first_line);
-    clear_buffer(&buffer);
-    return 0;
 cleanup:
+    if (request_header) free(request_header);
+    if (first_line) free(first_line);
     clear_buffer(&buffer);
-    return 1;
+    return status;
 }
 
 void handle_request(int *clientfd) {
@@ -154,22 +163,13 @@ void handle_request(int *clientfd) {
     }
 
     char *status_code = malloc(128 * sizeof(char));
-    if (!status_code) {
-        return;
-    }
+    if (!status_code) goto cleanup;
 
     char *response_body = malloc(2048 * sizeof(char));
-    if (!response_body) {
-        free(status_code);
-        return;
-    }
+    if (!response_body) goto cleanup;
 
     char *mime_type = malloc(256 * sizeof(char));
-    if (!mime_type) {
-        free(status_code);
-        free(response_body);
-        return;
-    }
+    if (!mime_type) goto cleanup;
 
     Response w = {
         .mime_type = mime_type,
@@ -181,12 +181,7 @@ void handle_request(int *clientfd) {
     handle_route(&w, r);
 
     char *response_header = (char*)malloc(2048 * sizeof(char));
-    if (!response_header) {
-        free(status_code);
-        free(mime_type);
-        free(response_body);
-        return;
-    }
+    if (!response_header) goto cleanup;
 
     snprintf(response_header, 2048, 
         "HTTP/1.1 %s\r\n"
@@ -198,12 +193,13 @@ void handle_request(int *clientfd) {
 
     send(*clientfd, response_header, strlen(response_header), 0);
     send(*clientfd, w.response_body, w.body_size, 0);
-
-    free(response_header);
-    free(w.response_body);
-    free(w.mime_type);
-    free(w.status_code);
-    free(r.method);
-    free(r.path);
-    free(r.protocol);
+    
+cleanup:    
+    if (status_code) free(status_code);
+    if (response_body) free(response_body);
+    if (mime_type) free(mime_type);
+    if (response_header) free(response_header);
+    if (r.method) free(r.method);
+    if (r.path) free(r.path);
+    if (r.protocol) free(r.protocol);
 }
