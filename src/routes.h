@@ -6,7 +6,7 @@
 typedef void (*Handler)(Response *w, Request r);
 
 typedef struct {
-    const char* route;
+    const char *method, *route;
     Handler handler;
 } Route;
 

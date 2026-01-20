@@ -10,6 +10,18 @@
 #define NOT_FOUND_PATH "static/404.html"
 #define FAVICON_PATH "static/image/favicon.png"
 
+#define status_ok(w) snprintf(w->status_code, 256, "%s", "200 OK")
+#define status_not_found(w) snprintf(w->status_code, 256, "%s", "404 Not Found")
+#define status_internal_server_error(w) snprintf(w->status_code, 256, "%s", "500 Internal Server Error")
+#define mime_html(w) snprintf(w->mime_type, 256, "%s", "text/html")
+
+void return_html(Response *w, char *content) {
+    ssize_t content_len = strlen(content);
+    snprintf(w->response_body, 2048, "%s", content);
+    snprintf(w->mime_type, 256, "%s", "text/html");
+    w->body_size = content_len;
+}
+
 struct Request {
     char *path, *method, *protocol;
 };
@@ -25,46 +37,36 @@ struct Response {
 void index_handler(Response *w, Request r) {
     char *content = load_txt_file(INDEX_PATH);
     if (content) {
-        ssize_t content_len = strlen(content);
-        snprintf(w->response_body, 2048, "%s", content);
-        snprintf(w->mime_type, 256, "%s", "text/html");
-        snprintf(w->status_code, 256, "%s", "200 OK");
-        w->body_size = strlen(w->response_body);
+        return_html(w, content);
+        status_ok(w);
         free(content);
     } else {
         printf("ERROR: could not load index.html\n");
-        snprintf(w->response_body, 2048, "%s", "500 Internal Server Error");
-        snprintf(w->mime_type, 256, "%s", "text/html");
-        snprintf(w->status_code, 256, "%s", "500 Internal Server Error");
-        w->body_size = strlen(w->response_body);
+        return_html(w, "<html><head><title>500 Internal Server Error</title></head><body>500 Internal Server Error</body></html>");
+        status_internal_server_error(w);
     }
 }
 
 void not_found_handler(Response *w, Request r) {
     char *content = load_txt_file(NOT_FOUND_PATH);
     if (content) {
-        ssize_t content_len = strlen(content);
-        snprintf(w->response_body, 2048, "%s", content);
-        snprintf(w->mime_type, 256, "%s", "text/html");
-        snprintf(w->status_code, 256, "%s", "404 Not Found");
-        w->body_size = strlen(w->response_body);
+        return_html(w, content);
+        status_not_found(w);
         free(content);
     } else {
-        snprintf(w->response_body, 2048, "%s", "404 Not Found");
-        snprintf(w->mime_type, 256, "%s", "text/html");
-        snprintf(w->status_code, 256, "%s", "404 Not Found");
-        w->body_size = strlen(w->response_body);
+        return_html(w, "<html><head><title>404 Not Found</title></head><body>404 Not Found</body></html>");
+        status_not_found(w);
     }
 }
 
 Route router[] = {
-    {.route = "/", .handler = index_handler},
+    {.method = "GET", .route = "/", .handler = index_handler},
     {.route = NULL, .handler = not_found_handler}
 };
 
 void handle_route(Response *w, Request r) {
     for (int i = 0; router[i].route != NULL; i++) {
-        if (strcmp(r.path, router[i].route) == 0) {
+        if ((strcmp(r.path, router[i].route) == 0) && (strcmp(r.method, router[i].method) == 0)) {
             router[i].handler(w, r);
             return;
         }

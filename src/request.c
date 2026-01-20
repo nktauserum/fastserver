@@ -82,7 +82,6 @@ int parse_request(int *clientfd, Request *r) {
     }
 
     strncpy(request_header, buffer.buf, header_len);
-    request_header[header_len] = '\0';
 
     // Select the first line in the header
     char *end_first_line = strchr(request_header, '\n');
@@ -94,7 +93,7 @@ int parse_request(int *clientfd, Request *r) {
 
     ssize_t first_line_len = end_first_line - request_header;
 
-    char *first_line = malloc(++first_line_len);
+    char *first_line = malloc(first_line_len);
     if (!request_header) {
         fprintf(stderr, "ERROR: malloc first_line\n");
         free(request_header);
@@ -103,7 +102,6 @@ int parse_request(int *clientfd, Request *r) {
     }
 
     strncpy(first_line, request_header, first_line_len);
-    first_line[--first_line_len] = '\0';
     printf("first_line: %s\n", first_line);
 
     // Allocate request fields
