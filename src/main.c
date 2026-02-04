@@ -70,7 +70,7 @@ int main(void) {
         return 1;
     }
 
-    if (listen(server.server_fd, 10) < 0) {
+    if (listen(server.server_fd, SOMAXCONN) < 0) {
         perror("ERROR: listen failed\n");
         close(server.server_fd);
         return 1;
