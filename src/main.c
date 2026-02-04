@@ -81,6 +81,7 @@ int main(void) {
     // initializing the buffer
     incoming_connections_buf buf;
     pthread_mutex_init(&buf.mu, NULL);
+    pthread_cond_init(&buf.cond, NULL);
     buf.head = buf.tail = buf.size = 0;
 
     pthread_t workers[8];
