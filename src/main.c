@@ -9,7 +9,7 @@
 
 #define PORT 5000
 #define QUEUE_SIZE 2048
-#define WORKERS_COUNT 8
+#define WORKERS_COUNT 16
 
 struct {
     int port;
@@ -104,11 +104,16 @@ int main(void) {
 
         pthread_mutex_lock(&buf.mu);
 
-        buf.queue[buf.head] = clientfd;
-        buf.head = (buf.head + 1) % QUEUE_SIZE;
-        buf.size++;
+        if (buf.size < QUEUE_SIZE) {
+            buf.queue[buf.head] = clientfd;
+            buf.head = (buf.head + 1) % QUEUE_SIZE;
+            buf.size++;
+            pthread_cond_signal(&buf.cond);
+        } else {
+            close(*clientfd);
+            free(clientfd);
+        }
 
-        pthread_cond_signal(&buf.cond);
         pthread_mutex_unlock(&buf.mu);
     }
     
