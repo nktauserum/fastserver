@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include "request.h"
 
@@ -12,28 +13,6 @@ struct {
     int server_fd;
     struct sockaddr_in server_addr;
 } server;
-
-void start() {
-    while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t client_addr_len = sizeof(client_addr);
-        int *clientfd = (int*)malloc(sizeof(int));
-        if (!clientfd) continue;
-
-        if ((*clientfd = accept(server.server_fd,
-                            (struct sockaddr *)&client_addr,
-                            &client_addr_len)) < 0 ) {
-            perror("ERROR: accept failed\n");
-            free(clientfd);
-            continue;
-        }
-
-        handle_request(clientfd);
-
-        close(*clientfd);
-        free(clientfd);
-    }
-}
 
 int main(void) {
    if ((server.server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -69,7 +48,25 @@ int main(void) {
 
     printf("INFO: server successfully started on port %d\n", PORT);
 
-    start(server);
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int *clientfd = (int*)malloc(sizeof(int));
+        if (!clientfd) continue;
+
+        if ((*clientfd = accept(server.server_fd,
+                            (struct sockaddr *)&client_addr,
+                            &client_addr_len)) < 0 ) {
+            perror("ERROR: accept failed\n");
+            free(clientfd);
+            continue;
+        }
+
+        handle_request(clientfd);
+
+        close(*clientfd);
+        free(clientfd);
+    }
     
     return 0;
 }
