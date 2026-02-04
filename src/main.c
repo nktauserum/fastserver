@@ -3,16 +3,46 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "request.h"
 
 #define PORT 5000
+#define QUEUE_SIZE 2048
+#define WORKERS_COUNT 8
 
 struct {
     int port;
     int server_fd;
     struct sockaddr_in server_addr;
 } server;
+
+typedef struct {
+    int* queue[QUEUE_SIZE]; 
+    int head, tail, size;
+
+    pthread_mutex_t mu;
+    pthread_cond_t cond;
+} incoming_connections_buf;
+
+void* worker(void* arg) {
+    incoming_connections_buf* buf = arg;
+
+    while (1) {
+        pthread_mutex_lock(&buf->mu);
+        while (buf->size == 0) pthread_cond_wait(&buf->cond, &buf->mu);
+
+        int* clientfd = buf->queue[buf->tail];
+        buf->tail = (buf->tail + 1) % QUEUE_SIZE;
+        buf->size--;
+        pthread_mutex_unlock(&buf->mu);
+
+        handle_request(clientfd);
+
+        close(*clientfd);
+        free(clientfd);
+    }
+}
 
 int main(void) {
    if ((server.server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -48,6 +78,15 @@ int main(void) {
 
     printf("INFO: server successfully started on port %d\n", PORT);
 
+    // initializing the buffer
+    incoming_connections_buf buf;
+    pthread_mutex_init(&buf.mu, NULL);
+    buf.head = buf.tail = buf.size = 0;
+
+    pthread_t workers[8];
+    for (int i = 0; i < WORKERS_COUNT; ++i)
+        pthread_create(&workers[i], NULL, worker, &buf);
+
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
@@ -62,10 +101,14 @@ int main(void) {
             continue;
         }
 
-        handle_request(clientfd);
+        pthread_mutex_lock(&buf.mu);
 
-        close(*clientfd);
-        free(clientfd);
+        buf.queue[buf.head] = clientfd;
+        buf.head = (buf.head + 1) % QUEUE_SIZE;
+        buf.size++;
+
+        pthread_cond_signal(&buf.cond);
+        pthread_mutex_unlock(&buf.mu);
     }
     
     return 0;
