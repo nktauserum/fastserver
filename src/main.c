@@ -2,10 +2,6 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <string.h>
-#include <regex.h>
 
 #include "request.h"
 
