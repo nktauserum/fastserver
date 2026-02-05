@@ -84,7 +84,7 @@ int main(void) {
     pthread_cond_init(&buf.cond, NULL);
     buf.head = buf.tail = buf.size = 0;
 
-    pthread_t workers[8];
+    pthread_t workers[WORKERS_COUNT];
     for (int i = 0; i < WORKERS_COUNT; ++i)
         pthread_create(&workers[i], NULL, worker, &buf);
 
