@@ -4,6 +4,9 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/epoll.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #include "request.h"
 
@@ -75,6 +78,12 @@ int main(void) {
         close(server.server_fd);
         return 1;
     }
+    
+    if (fcntl(server.server_fd, F_SETFL, O_NONBLOCK) < 0) {
+        perror("ERROR: fcntl failed\n");
+        close(server.server_fd);
+        return 1;
+    }
 
     printf("INFO: server successfully started on port %d\n", PORT);
 
@@ -88,33 +97,43 @@ int main(void) {
     for (int i = 0; i < WORKERS_COUNT; ++i)
         pthread_create(&workers[i], NULL, worker, &buf);
 
+    int epfd = epoll_create1(0);
+    struct epoll_event ev = {.events = EPOLLIN, .data.fd = server.server_fd};
+    epoll_ctl(epfd, EPOLL_CTL_ADD, server.server_fd, &ev);    
+
     while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t client_addr_len = sizeof(client_addr);
-        int *clientfd = (int*)malloc(sizeof(int));
-        if (!clientfd) continue;
+        struct epoll_event events[64];
+        int n = epoll_wait(epfd, events, 64, -1);
 
-        if ((*clientfd = accept(server.server_fd,
-                            (struct sockaddr *)&client_addr,
-                            &client_addr_len)) < 0 ) {
-            perror("ERROR: accept failed\n");
-            free(clientfd);
-            continue;
+        for (int i = 0; i < n; ++i) {
+            if (events[i].data.fd == server.server_fd) {
+                while (1) {
+                    int *clientfd = (int*)malloc(sizeof(int));
+                    if (!clientfd) break;
+
+                    if ((*clientfd = accept(server.server_fd, NULL, NULL)) < 0 ) {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                        perror("ERROR: accept failed\n");
+                        free(clientfd);
+                        break;
+                    }
+
+                    pthread_mutex_lock(&buf.mu);
+
+                    if (buf.size < QUEUE_SIZE) {
+                        buf.queue[buf.head] = clientfd;
+                        buf.head = (buf.head + 1) % QUEUE_SIZE;
+                        buf.size++;
+                        pthread_cond_signal(&buf.cond);
+                    } else {
+                        close(*clientfd);
+                        free(clientfd);
+                    }
+
+                    pthread_mutex_unlock(&buf.mu);
+                }
+            }
         }
-
-        pthread_mutex_lock(&buf.mu);
-
-        if (buf.size < QUEUE_SIZE) {
-            buf.queue[buf.head] = clientfd;
-            buf.head = (buf.head + 1) % QUEUE_SIZE;
-            buf.size++;
-            pthread_cond_signal(&buf.cond);
-        } else {
-            close(*clientfd);
-            free(clientfd);
-        }
-
-        pthread_mutex_unlock(&buf.mu);
     }
     
     return 0;
