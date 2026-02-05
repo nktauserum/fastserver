@@ -184,6 +184,7 @@ void handle_request(int *clientfd) {
     snprintf(response_header, 2048, 
         "HTTP/1.1 %s\r\n"
         "Content-Type: %s\r\n"
+        "Connection: close\r\n"
         "Content-Length: %zu\r\n\r\n",
 
         w.status_code, w.mime_type, w.body_size

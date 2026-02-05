@@ -12,7 +12,7 @@
 
 #define PORT 5000
 #define QUEUE_SIZE 2048
-#define WORKERS_COUNT 16
+#define WORKERS_COUNT 32
 
 struct {
     int port;
