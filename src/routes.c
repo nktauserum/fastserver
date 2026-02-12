@@ -66,12 +66,12 @@ Route router[] = {
 
 void handle_route(Response *w, Request r) {
     for (int i = 0; router[i].route != NULL; i++) {
-        if ((strcmp(r.path, router[i].route) == 0) && (strcmp(r.method, router[i].method) == 0)) {
+        if ((strncmp(r.path, router[i].route, r.path_len) == 0) && (strncmp(r.method, router[i].method, r.method_len) == 0)) {
             router[i].handler(w, r);
             return;
         }
     }
 
-    printf("Not found: %s\n", r.path);
+    printf("Not found: %s\n", strndup(r.path, r.path_len));
     not_found_handler(w,r);
 }
