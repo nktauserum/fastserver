@@ -13,6 +13,7 @@
 #define PORT 5000
 #define QUEUE_SIZE 2048
 #define WORKERS_COUNT 32
+#define REQUEST_BUFFER_SIZE 1024*6
 
 struct {
     int port;
@@ -31,6 +32,14 @@ typedef struct {
 void* worker(void* arg) {
     incoming_connections_buf* buf = arg;
 
+    request_buffer rb = {0};
+    rb.buf_size = REQUEST_BUFFER_SIZE * sizeof(char);
+    rb.buf = (char *)malloc(rb.buf_size);
+    if (!rb.buf) {
+        perror("malloc"); 
+        return NULL;
+     }
+
     while (1) {
         pthread_mutex_lock(&buf->mu);
         while (buf->size == 0) pthread_cond_wait(&buf->cond, &buf->mu);
@@ -40,10 +49,11 @@ void* worker(void* arg) {
         buf->size--;
         pthread_mutex_unlock(&buf->mu);
 
-        handle_request(clientfd);
+        handle_request(clientfd, &rb);
 
         close(*clientfd);
         free(clientfd);
+        rb.total_read = 0;
     }
 }
 

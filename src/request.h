@@ -13,7 +13,7 @@ enum {
 
 typedef struct {
     char *buf;
-    size_t capacity;
+    size_t buf_size;
     size_t total_read;
 } request_buffer;
 
@@ -31,6 +31,6 @@ typedef struct {
     size_t body_size;
 } Response;
 
-void handle_request(int *);
+void handle_request(int *, request_buffer *);
 
 #endif // REQUEST_H

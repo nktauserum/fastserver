@@ -6,37 +6,12 @@
 #include "request.h"
 #include "routes.h"
 
-#define REQUEST_BUFFER_SIZE 1024
 
-void init_buffer(request_buffer *r_buf) {
-    r_buf->capacity = REQUEST_BUFFER_SIZE * sizeof(char);
-    r_buf->buf = (char *)malloc(r_buf->capacity);
-    r_buf->total_read = 0;
-}
-
-void clear_buffer(request_buffer *r_buf) {
-    if (r_buf->buf) free(r_buf->buf);
-}
-
-int parse_request(int *clientfd, Request *r) {
+int parse_request(int *clientfd, Request *r, request_buffer *buffer) {
     int status = 0;
-    request_buffer buffer;
-    init_buffer(&buffer);
 
     while (1) {
-        // Reallocate the buffer if needed.
-        if (buffer.total_read >= buffer.capacity - 1) {
-            buffer.capacity *= 2;
-            char *temp = realloc(buffer.buf, buffer.capacity);
-            if (!temp) {
-                fprintf(stderr, "ERROR: realloc request_buffer\n");
-                status++;
-                goto error;
-            }
-            buffer.buf = temp;
-        }
-
-        ssize_t bytes_read = recv(*clientfd, buffer.buf + buffer.total_read, buffer.capacity - buffer.total_read - 1, 0);
+        ssize_t bytes_read = recv(*clientfd, buffer->buf + buffer->total_read, buffer->buf_size - buffer->total_read - 1, 0);
         
         if (bytes_read < 0) {
             perror("recv");
@@ -45,25 +20,25 @@ int parse_request(int *clientfd, Request *r) {
         }
         
         if (bytes_read == 0) {
-            if (buffer.total_read == 0) {
+            if (buffer->total_read == 0) {
                 status++;
                 goto error;
             }
             break;
         }
         
-        buffer.total_read += bytes_read;
+        buffer->total_read += bytes_read;
         
-        buffer.buf[buffer.total_read] = '\0';
+        buffer->buf[buffer->total_read] = '\0';
 
-        if (strstr(buffer.buf, "\r\n\r\n")) break;
+        if (strstr(buffer->buf, "\r\n\r\n")) break;
     }
     
-    // buffer.buf now contains raw request data
-    r->buf = buffer.buf;
+    // buffer->buf now contains raw request data
+    r->buf = buffer->buf;
 
-    const char *p = buffer.buf;
-    const char *end = buffer.buf + buffer.total_read;
+    const char *p = buffer->buf;
+    const char *end = buffer->buf + buffer->total_read;
     int state = s_start;
 
     while (p < end) {
@@ -102,18 +77,15 @@ int parse_request(int *clientfd, Request *r) {
             break;
         }
     }
-
-    return status;
     
 error:
-    clear_buffer(&buffer);
     return status;
 }
 
-void handle_request(int *clientfd) {
+void handle_request(int *clientfd, request_buffer *buffer) {
     Request r = {0};
     int s;
-    if ((s = parse_request(clientfd, &r)) != 0) {
+    if ((s = parse_request(clientfd, &r, buffer)) != 0) {
         fprintf(stderr, "ERROR: parse request\n");
         return;
     }
